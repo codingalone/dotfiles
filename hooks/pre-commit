@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+#
+# pre-commit hook: 2段構えのスキャナーで staged diff を検査する
+#   1. ローカル blocklist による高速リテラル一致 (個人情報など)
+#   2. Claude CLI による意味論的な秘密情報スキャン
+#
+# セットアップ (clone 直後):
+#   ln -sf ../../hooks/pre-commit .git/hooks/pre-commit
+#   touch hooks/private-patterns.local     # 空ファイルでも可だが非推奨
+#
+# スキップしたい場合: git commit --no-verify
+
+set -euo pipefail
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+BLOCKLIST="$REPO_ROOT/hooks/private-patterns.local"
+
+# staged changes を取得
+DIFF=$(git diff --cached --diff-filter=ACMR)
+
+# 差分がなければスキップ
+if [ -z "$DIFF" ]; then
+  exit 0
+fi
+
+# ---------------------------------------------------------------------------
+# Step 1: ローカル blocklist チェック (fail-closed)
+# ---------------------------------------------------------------------------
+
+if [ ! -f "$BLOCKLIST" ]; then
+  cat >&2 <<EOF
+[pre-commit] ERROR: blocklist ファイルが存在しません
+  期待する場所: $BLOCKLIST
+
+このファイルはパブリックリポジトリに混入させたくない文字列
+(本名、ユーザー名、組織名、ホスト名など) を列挙するためのもので、
+.gitignore 対象なのでリポジトリには含まれません。
+
+パターンがまだ無い場合は空ファイルを作成してください:
+  touch "$BLOCKLIST"
+
+スキャンを完全にスキップする場合: git commit --no-verify
+EOF
+  exit 1
+fi
+
+# コメントと空行を除いてパターンを抽出
+PATTERNS=$(grep -v '^[[:space:]]*#' "$BLOCKLIST" | grep -v '^[[:space:]]*$' || true)
+
+if [ -n "$PATTERNS" ]; then
+  MATCHED=$(echo "$DIFF" | grep -n -i -F -f <(echo "$PATTERNS") || true)
+  if [ -n "$MATCHED" ]; then
+    cat >&2 <<EOF
+
+============================================
+ blocklist パターンが検出されました
+============================================
+
+blocklist ($BLOCKLIST) に記載された文字列が staged diff に含まれています。
+該当箇所を sanitize してから再度 commit してください。
+
+検出箇所 (最大20行):
+EOF
+    echo "$MATCHED" | head -20 >&2
+    echo "" >&2
+    echo "スキャンをスキップする場合: git commit --no-verify" >&2
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
+# Step 2: Claude CLI による秘密情報スキャン (CLI が無ければスキップ)
+# ---------------------------------------------------------------------------
+
+if ! command -v claude &>/dev/null; then
+  echo "[pre-commit] claude CLI が見つかりません。Claude スキャンをスキップします。"
+  exit 0
+fi
+
+echo "[pre-commit] Claude による秘密情報スキャンを実行中..."
+
+PROMPT="$(cat <<'PROMPT_EOF'
+あなたは pre-commit hook として動作するセキュリティスキャナーです。
+以下の git diff に秘密情報やセンシティブなデータが含まれていないか検査してください。
+
+検出対象:
+- API キー、トークン、シークレット
+- パスワード、認証情報
+- 秘密鍵 (SSH, GPG, etc.)
+- データベース接続文字列 (パスワード入り)
+- .env ファイルの内容
+- その他公開リポジトリに入れるべきでない情報
+
+判定ルール:
+- 問題なし → 1行目に "PASS" とだけ出力
+- 問題あり → 1行目に "FAIL" と出力し、2行目以降に理由を簡潔に日本語で説明
+
+diff:
+PROMPT_EOF
+)"
+
+RESULT=$(echo "$DIFF" | claude -p "$PROMPT
+$(cat)" --model haiku 2>/dev/null) || {
+  echo "[pre-commit] Claude の実行に失敗しました。スキップします。"
+  exit 0
+}
+
+FIRST_LINE=$(echo "$RESULT" | head -1)
+
+if [[ "$FIRST_LINE" == *"FAIL"* ]]; then
+  echo ""
+  echo "============================================"
+  echo " 秘密情報が検出されました！コミットを中断します"
+  echo "============================================"
+  echo ""
+  echo "$RESULT" | tail -n +2
+  echo ""
+  echo "修正後に再度 git commit してください。"
+  echo "検査をスキップする場合: git commit --no-verify"
+  exit 1
+fi
+
+echo "[pre-commit] PASS - 秘密情報は検出されませんでした。"
+exit 0

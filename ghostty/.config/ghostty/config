@@ -1,0 +1,20 @@
+shell-integration = fish
+
+theme = TokyoNight Storm
+font-family = "JetBrains Mono Regular"
+font-feature = -calt
+font-feature = -dlig
+macos-titlebar-proxy-icon = hidden
+unfocused-split-opacity = 0.6
+
+keybind = cmd+t=new_tab
+keybind = cmd+c=copy_to_clipboard
+keybind = cmd+period=unbind
+keybind = cmd+period=reload_config
+keybind = global:cmd+ctrl+p=toggle_quick_terminal
+
+window-save-state = always
+
+quick-terminal-screen = mouse
+quick-terminal-position = bottom
+keybind = shift+enter=text:\n

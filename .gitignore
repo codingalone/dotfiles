@@ -1,0 +1,32 @@
+.DS_Store
+*.swp
+*.swo
+*~
+
+# --- fish: マシン固有の状態 ---
+# fisher/fish が書き出す universal variables (秘密情報を含みうる)
+fish/.config/fish/fish_variables
+
+# --- fish: fisher / プラグインが自動配置するファイル ---
+# fisher 本体 (bootstrap 時に curl で取得)
+fish/.config/fish/functions/fisher.fish
+fish/.config/fish/completions/fisher.fish
+
+# patrickf1/fzf.fish
+fish/.config/fish/functions/_fzf_*.fish
+fish/.config/fish/functions/fzf_configure_bindings.fish
+fish/.config/fish/completions/fzf_configure_bindings.fish
+fish/.config/fish/conf.d/fzf.fish
+
+# danhper/fish-ssh-agent
+fish/.config/fish/functions/__ssh_agent_*.fish
+fish/.config/fish/conf.d/fish-ssh-agent.fish
+
+# --- fish: Amazon Q (旧 Fig) の自動生成シェル統合ファイル ---
+fish/.config/fish/conf.d/[0-9][0-9]_fig_*.fish
+
+# --- fish: ローカル秘密情報 ---
+fish/.config/fish/conf.d/private.fish
+
+# --- pre-commit hook の個人情報 blocklist (マシンローカル) ---
+hooks/private-patterns.local
