@@ -28,5 +28,9 @@ fish/.config/fish/conf.d/[0-9][0-9]_fig_*.fish
 # --- fish: ローカル秘密情報 ---
 fish/.config/fish/conf.d/private.fish
 
+# --- nvim: NvChad ランタイム / 自動生成ファイル ---
+# spell辞書 (マシンローカルで蓄積される)
+nvim/.config/nvim/spell/
+
 # --- pre-commit hook の個人情報 blocklist (マシンローカル) ---
 hooks/private-patterns.local
